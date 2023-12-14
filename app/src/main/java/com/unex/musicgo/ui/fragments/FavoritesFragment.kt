@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.unex.musicgo.R
 import com.unex.musicgo.databinding.FavoritesFragmentBinding
@@ -26,7 +27,7 @@ class FavoritesFragment : Fragment() {
     private lateinit var listener: OnSongClickListener
 
     private val viewModel: FavoritesFragmentViewModel by lazy {
-        FavoritesFragmentViewModel()
+        ViewModelProvider(this)[FavoritesFragmentViewModel::class.java]
     }
 
     override fun onAttach(context: Context) {
