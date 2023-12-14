@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.unex.musicgo.databinding.SongListFragmentBinding
 import com.unex.musicgo.models.Song
@@ -24,7 +25,7 @@ class CommentListFragment : Fragment() {
     private lateinit var adapter: CommentListAdapter
 
     private val viewModel: CommentListFragmentViewModel by lazy {
-        CommentListFragmentViewModel()
+        ViewModelProvider(this)[CommentListFragmentViewModel::class.java]
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
