@@ -6,15 +6,12 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.ViewModelProvider
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
 import com.unex.musicgo.database.MusicGoDatabase
 import com.unex.musicgo.databinding.LoginBinding
-import com.unex.musicgo.models.User
-import kotlinx.coroutines.launch
-
+import com.unex.musicgo.ui.vms.LoginActivityViewModel
+import com.unex.musicgo.ui.vms.factories.LoginActivityViewModelFactory
 
 class LoginActivity : AppCompatActivity() {
 
@@ -31,31 +28,31 @@ class LoginActivity : AppCompatActivity() {
     private var _binding: LoginBinding? = null
     private val binding get() = _binding!!
 
-    private lateinit var auth: FirebaseAuth
-    private var db: MusicGoDatabase? = null
+    private val viewModel: LoginActivityViewModel by lazy {
+        val database = MusicGoDatabase.getInstance(this)
+        val auth = FirebaseAuth.getInstance()
+        val factory = LoginActivityViewModelFactory(database!!, auth)
+        ViewModelProvider(this, factory)[LoginActivityViewModel::class.java]
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = LoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        lifecycleScope.launch {
-            db = MusicGoDatabase.getInstance(this@LoginActivity)
+        setUpViewModel()
+
+        binding.bind()
+    }
+
+    private fun setUpViewModel() {
+        viewModel.toastLiveData.observe(this) { message ->
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
-
-        auth = FirebaseAuth.getInstance()
-        if (auth.currentUser != null) {
-            // auth.signOut()
-
-            // Launch the main activity
+        viewModel.isLoggedLiveData.observe(this) {
             val intent = HomeActivity.getIntent(this)
             startActivity(intent)
-            // Finish login activity and go to main activity
             finish()
-        }
-
-        with(binding) {
-            bind()
         }
     }
 
@@ -83,60 +80,7 @@ class LoginActivity : AppCompatActivity() {
     private fun login(email: String, password: String) {
         Log.d(TAG, "Logging in")
         Log.d(TAG, "Username: $email, Password: $password")
-        // Try to get the user from the firebase database
-        auth.signInWithEmailAndPassword(email, password)
-            .addOnCompleteListener(this) { task ->
-                if (task.isSuccessful) {
-                    // Sign in success, update UI with the signed-in user's information
-                    Log.d(TAG, "signInWithEmail:success")
-                    // Save the user
-                    saveUser()
-                    // Launch the main activity
-                    val intent = HomeActivity.getIntent(this)
-                    startActivity(intent)
-                    // Finish login activity and go to main activity
-                    finish()
-                } else {
-                    // If sign in fails, display a message to the user.
-                    Log.w(TAG, "signInWithEmail:failure", task.exception)
-                    Toast.makeText(
-                        baseContext,
-                        "Authentication failed.",
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-            }
-    }
-
-    private fun saveUser() {
-        val email = auth.currentUser?.email
-        Log.d(TAG, "Saving user $email")
-        val firestore = Firebase.firestore
-        // Get the user data from the database
-        val userCollection = firestore.collection("users")
-        // Search the document whose field email is equal to the user email. Only one document is expected.
-        userCollection.whereEqualTo("email", email).get()
-            .addOnSuccessListener { documents ->
-                for (document in documents) {
-                    val userEmail = document.data["email"].toString()
-                    // val password = document.data["password"].toString()
-                    val userSurname = document.data["userSurname"].toString()
-                    val username = document.data["username"].toString()
-                    // Save the user in the database
-                    lifecycleScope.launch {
-                        val user = User(
-                            email = userEmail,
-                            userSurname = userSurname,
-                            username = username,
-                        )
-                        db?.userDao()?.deleteAll()
-                        db?.userDao()?.insertUser(user)
-                    }
-                }
-            }
-            .addOnFailureListener { exception ->
-                Log.w(TAG, "Error getting documents: ", exception)
-            }
+        viewModel.signInWithEmailAndPassword(email, password)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
