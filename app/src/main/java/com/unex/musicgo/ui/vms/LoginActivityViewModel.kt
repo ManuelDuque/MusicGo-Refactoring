@@ -25,6 +25,22 @@ class LoginActivityViewModel(
     }
 
     fun signInWithEmailAndPassword(email: String, password: String) {
+        if (email.isEmpty()) {
+            toastLiveData.value = "Please enter your email."
+            return
+        }
+        if (!email.matches(Regex("[a-zA-Z0-9._-]+@[a-z]+\\.+[a-z]+"))) {
+            toastLiveData.value = "Please enter a valid email."
+            return
+        }
+        if (password.isEmpty()) {
+            toastLiveData.value = "Please enter your password."
+            return
+        }
+        if (password.length < 6) {
+            toastLiveData.value = "Password must be at least 6 characters."
+            return
+        }
         auth.signInWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {

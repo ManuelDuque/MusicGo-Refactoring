@@ -61,26 +61,12 @@ class LoginActivity : AppCompatActivity() {
         this.loginBtn.setOnClickListener {
             val emailText = this.username.text.toString()
             val passwordText = this.passwordTv.text.toString()
-            if (emailText.isEmpty() || passwordText.isEmpty()) {
-                Toast.makeText(
-                    baseContext,
-                    "Please fill all the fields",
-                    Toast.LENGTH_SHORT,
-                ).show()
-                return@setOnClickListener
-            }
-            login(emailText, passwordText)
+            viewModel.signInWithEmailAndPassword(emailText, passwordText)
         }
         this.registerBtn.setOnClickListener {
             val intent = SignupActivity.newIntent(this@LoginActivity)
             startActivity(intent)
         }
-    }
-
-    private fun login(email: String, password: String) {
-        Log.d(TAG, "Logging in")
-        Log.d(TAG, "Username: $email, Password: $password")
-        viewModel.signInWithEmailAndPassword(email, password)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
