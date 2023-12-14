@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.unex.musicgo.databinding.DiscoverFragmentBinding
 import com.unex.musicgo.models.Genre
@@ -28,7 +29,7 @@ class DiscoverFragment : Fragment(), GenreListFragment.OnGenreClickListener {
     private lateinit var onSongClickListener: OnSongClickListener
 
     private val viewModel: DiscoverFragmentViewModel by lazy {
-        DiscoverFragmentViewModel()
+        ViewModelProvider(this)[DiscoverFragmentViewModel::class.java]
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
