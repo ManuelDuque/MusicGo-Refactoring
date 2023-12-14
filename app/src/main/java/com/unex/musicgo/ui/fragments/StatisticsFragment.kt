@@ -8,7 +8,6 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
-import com.unex.musicgo.database.MusicGoDatabase
 import com.unex.musicgo.databinding.StatisticsFragmentBinding
 import com.unex.musicgo.ui.vms.StatisticsFragmentViewModel
 
@@ -24,9 +23,10 @@ class StatisticsFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val viewModel: StatisticsFragmentViewModel by lazy {
-        val database = MusicGoDatabase.getInstance(requireContext())
-        val factory = StatisticsFragmentViewModel.Factory(database!!)
-        ViewModelProvider(this, factory)[StatisticsFragmentViewModel::class.java]
+        ViewModelProvider(
+            this,
+            StatisticsFragmentViewModel.Factory
+        )[StatisticsFragmentViewModel::class.java]
     }
 
     override fun onCreateView(

@@ -7,11 +7,8 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
-import com.google.firebase.auth.FirebaseAuth
-import com.unex.musicgo.database.MusicGoDatabase
 import com.unex.musicgo.databinding.LoginBinding
 import com.unex.musicgo.ui.vms.LoginActivityViewModel
-import com.unex.musicgo.ui.vms.factories.LoginActivityViewModelFactory
 
 class LoginActivity : AppCompatActivity() {
 
@@ -29,10 +26,10 @@ class LoginActivity : AppCompatActivity() {
     private val binding get() = _binding!!
 
     private val viewModel: LoginActivityViewModel by lazy {
-        val database = MusicGoDatabase.getInstance(this)
-        val auth = FirebaseAuth.getInstance()
-        val factory = LoginActivityViewModelFactory(database!!, auth)
-        ViewModelProvider(this, factory)[LoginActivityViewModel::class.java]
+        ViewModelProvider(
+            this,
+            LoginActivityViewModel.Factory
+        )[LoginActivityViewModel::class.java]
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

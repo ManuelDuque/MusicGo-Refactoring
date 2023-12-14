@@ -13,7 +13,6 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.unex.musicgo.R
-import com.unex.musicgo.database.MusicGoDatabase
 import com.unex.musicgo.databinding.DialogBinding
 import com.unex.musicgo.databinding.GeneralActivityBinding
 import com.unex.musicgo.models.PlayList
@@ -33,7 +32,6 @@ import com.unex.musicgo.ui.fragments.StatisticsFragment
 import com.unex.musicgo.ui.interfaces.OnCreatePlayListButtonClick
 import com.unex.musicgo.ui.interfaces.OnSongClickListener
 import com.unex.musicgo.ui.vms.HomeActivityViewModel
-import com.unex.musicgo.ui.vms.factories.HomeActivityViewModelFactory
 import kotlinx.coroutines.launch
 
 class HomeActivity : AppCompatActivity(), OnSongClickListener, OnSearchListener,
@@ -50,9 +48,10 @@ class HomeActivity : AppCompatActivity(), OnSongClickListener, OnSearchListener,
     private lateinit var binding: GeneralActivityBinding
 
     private val viewModel: HomeActivityViewModel by lazy {
-        val database = MusicGoDatabase.getInstance(this)
-        val factory = HomeActivityViewModelFactory(database!!)
-        ViewModelProvider(this, factory)[HomeActivityViewModel::class.java]
+        ViewModelProvider(
+            this,
+            HomeActivityViewModel.Factory
+        )[HomeActivityViewModel::class.java]
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

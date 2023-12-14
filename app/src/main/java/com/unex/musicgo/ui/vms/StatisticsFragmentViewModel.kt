@@ -6,15 +6,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.switchMap
 import androidx.lifecycle.viewModelScope
-import com.unex.musicgo.database.MusicGoDatabase
+import androidx.lifecycle.viewmodel.CreationExtras
+import com.unex.musicgo.MusicGoApplication
+import com.unex.musicgo.utils.Repository
 import kotlinx.coroutines.launch
 
 class StatisticsFragmentViewModel(
-    private val database: MusicGoDatabase
+    private val repository: Repository
 ): ViewModel() {
 
     val toastLiveData = MutableLiveData<String>()
-    val isLoading = MutableLiveData<Boolean>(false)
+    val isLoading = MutableLiveData(false)
 
     private var _favoriteSongTitle = MutableLiveData<String>()
     val favoriteSongTitle: LiveData<String> = _favoriteSongTitle
@@ -33,6 +35,7 @@ class StatisticsFragmentViewModel(
     init {
         viewModelScope.launch {
             try {
+                val database = repository.database
                 isLoading.postValue(true)
                 val songStatistics = database.statisticsDao().getMostPlayedSong()
                 val artistStatistics = database.statisticsDao().getMostPlayedArtist()
@@ -65,15 +68,21 @@ class StatisticsFragmentViewModel(
         }
     }
 
-    class Factory(
-        private val database: MusicGoDatabase
-    ) : ViewModelProvider.Factory {
+    companion object {
+        const val TAG = "StatisticsFragmentViewModel"
 
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(StatisticsFragmentViewModel::class.java)) {
-                return StatisticsFragmentViewModel(database) as T
+        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>,
+                extras: CreationExtras
+            ): T {
+                val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val viewModel = StatisticsFragmentViewModel(
+                    (application as MusicGoApplication).appContainer.repository,
+                )
+                return viewModel as T
             }
-            throw IllegalArgumentException("Unknown ViewModel class")
         }
     }
 }

@@ -2,19 +2,25 @@ package com.unex.musicgo.ui.vms
 
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.unex.musicgo.MusicGoApplication
 import com.unex.musicgo.database.MusicGoDatabase
 import com.unex.musicgo.models.User
+import com.unex.musicgo.utils.Repository
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class SignUpActivityViewModel(
-    private val database: MusicGoDatabase,
-    private val auth: FirebaseAuth
+    private val repository: Repository
 ): ViewModel() {
+
+    private val database: MusicGoDatabase by lazy { repository.database }
+    private val auth: FirebaseAuth by lazy { repository.auth }
 
     val toastLiveData = MutableLiveData<String>()
     val isLoggedLiveData = MutableLiveData<Boolean>()
@@ -74,6 +80,24 @@ class SignUpActivityViewModel(
                 isLoggedLiveData.value = true
             } catch (e: Exception) {
                 toastLiveData.value = e.message
+            }
+        }
+    }
+
+    companion object {
+        const val TAG = "SignUpActivityViewModel"
+
+        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>,
+                extras: CreationExtras
+            ): T {
+                val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val viewModel = SignUpActivityViewModel(
+                    (application as MusicGoApplication).appContainer.repository,
+                )
+                return viewModel as T
             }
         }
     }

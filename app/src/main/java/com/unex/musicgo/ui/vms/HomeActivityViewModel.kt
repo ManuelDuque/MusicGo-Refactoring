@@ -5,19 +5,27 @@ import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
 import com.google.gson.Gson
+import com.unex.musicgo.MusicGoApplication
 import com.unex.musicgo.database.MusicGoDatabase
 import com.unex.musicgo.models.PlayList
 import com.unex.musicgo.models.PlayListSongCrossRef
 import com.unex.musicgo.models.PlayListWithSongs
 import com.unex.musicgo.ui.activities.HomeActivity
+import com.unex.musicgo.utils.Repository
 import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
 
 class HomeActivityViewModel(
-    private val database: MusicGoDatabase
+    private val repository: Repository
 ): ViewModel() {
+
+    val database by lazy {
+        repository.database
+    }
 
     val toastLiveData = MutableLiveData<String>()
     val confirmImportPlayListLiveData = MutableLiveData<PlayListWithSongs?>()
@@ -74,6 +82,24 @@ class HomeActivityViewModel(
         } catch (e: Exception) {
             Log.e(HomeActivity.TAG, "Error deleting old cache", e)
             toastLiveData.value = "Error deleting old cache"
+        }
+    }
+
+    companion object {
+        const val TAG = "HomeActivityViewModel"
+
+        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>,
+                extras: CreationExtras
+            ): T {
+                val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val viewModel = HomeActivityViewModel(
+                    (application as MusicGoApplication).appContainer.repository,
+                )
+                return viewModel as T
+            }
         }
     }
 

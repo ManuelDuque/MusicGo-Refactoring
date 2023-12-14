@@ -7,11 +7,8 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
-import com.google.firebase.auth.FirebaseAuth
-import com.unex.musicgo.database.MusicGoDatabase
 import com.unex.musicgo.databinding.SignupBinding
 import com.unex.musicgo.ui.vms.SignUpActivityViewModel
-import com.unex.musicgo.ui.vms.factories.SignUpActivityViewModelFactory
 
 class SignupActivity : AppCompatActivity() {
 
@@ -29,10 +26,10 @@ class SignupActivity : AppCompatActivity() {
     private val binding get() = _binding!!
 
     private val viewModel: SignUpActivityViewModel by lazy {
-        val database = MusicGoDatabase.getInstance(this)
-        val auth = FirebaseAuth.getInstance()
-        val factory = SignUpActivityViewModelFactory(database!!, auth)
-        ViewModelProvider(this, factory)[SignUpActivityViewModel::class.java]
+        ViewModelProvider(
+            this,
+            SignUpActivityViewModel.Factory
+        )[SignUpActivityViewModel::class.java]
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
