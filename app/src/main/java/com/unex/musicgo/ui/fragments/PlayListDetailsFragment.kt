@@ -12,6 +12,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.gson.Gson
@@ -22,6 +23,8 @@ import com.unex.musicgo.databinding.ListDisplayBinding
 import com.unex.musicgo.models.PlayList
 import com.unex.musicgo.models.PlayListWithSongs
 import com.unex.musicgo.models.Song
+import com.unex.musicgo.ui.vms.PlayListDetailsFragmentViewModel
+import com.unex.musicgo.ui.vms.factories.PlayListDetailsFragmentViewModelFactory
 import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
 
@@ -58,45 +61,109 @@ class PlayListDetailsFragment : Fragment(), SongListFragment.OnSongDeleteListene
 
     private var _binding: ListDisplayBinding? = null
     private val binding get() = _binding!!
-    private var db: MusicGoDatabase? = null
 
-    private lateinit var state: State // The state of the fragment
-
-    private var playlistWithSongs: PlayListWithSongs? = null
-    private var playlist: PlayList? = null
+    private val viewModel: PlayListDetailsFragmentViewModel by lazy {
+        val database = MusicGoDatabase.getInstance(requireContext())
+        val factory = PlayListDetailsFragmentViewModelFactory(database!!)
+        ViewModelProvider(this, factory)[PlayListDetailsFragmentViewModel::class.java]
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate PlayListDetailsFragment")
-        arguments?.let {
-            state = State.valueOf(it.getString(ARG_MODE)!!)
-            playlist = it.getSerializable(ARG_PLAYLIST) as PlayList?
-            Log.d(TAG, "Initial state: $state")
-            Log.d(TAG, "Playlist: $playlist")
-        }
 
-        lifecycleScope.launch {
-            db = MusicGoDatabase.getInstance(requireContext())
+        arguments?.let {
+            val state = State.valueOf(it.getString(ARG_MODE)!!)
+            val playlist = it.getSerializable(ARG_PLAYLIST) as PlayList?
+            viewModel.setState(state.name)
+            playlist?.let { playlist ->
+                viewModel.setPlaylist(playlist)
+            }
         }
     }
 
-    private fun ListDisplayBinding.bindSongs() {
-        lifecycleScope.launch {
-            playlist?.let {
-                Log.d(TAG, "Getting playlist with songs")
-                playlistWithSongs = db?.playListDao()?.getPlayList(it.id)
-                Log.d(TAG, "Playlist with songs: $playlistWithSongs")
-                playlistWithSongs?.let {
-                    val fragment = SongListFragment.newPlayListInstance(it)
-                    with(binding) {
-                        this@PlayListDetailsFragment
-                            .childFragmentManager
-                            .beginTransaction()
-                            .replace(this.fragmentSongListContainer.id, fragment)
-                            .commit()
-                    }
-                }
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        Log.d(TAG, "onCreateView PlayListDetailsFragment")
+        _binding = ListDisplayBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        Log.d(TAG, "onViewCreated PlayListDetailsFragment")
+        super.onViewCreated(view, savedInstanceState)
+
+        setUpViewModel()
+
+        // Bind the data
+        bind()
+    }
+
+    private fun setUpViewModel() {
+        viewModel.toastLiveData.observe(viewLifecycleOwner) {
+            Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+        }
+        viewModel.playlistWithSongs.observe(viewLifecycleOwner) {
+            if (it != null) {
+                launchSongListFragment(it)
             }
+        }
+    }
+
+    override fun onStart() {
+        Log.d(TAG, "onStart PlayListDetailsFragment")
+        super.onStart()
+        // Set the bottom navigation item as selected
+        val bottomNavigation = requireActivity()
+            .findViewById<BottomNavigationView>(R.id.bottomNavigationView)
+        bottomNavigation?.let {
+            it.menu.getItem(1).isCheckable = true
+            it.menu.getItem(1).isChecked = true
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null // avoid memory leaks
+    }
+
+    override fun onSongDelete(song: Song) {
+        Log.d(TAG, "onDeleteSongFromPlayListClick")
+
+        // Show a dialog to confirm the deletion of the song
+        val dialog = Dialog(requireContext())
+        val dialogBinding = DialogBinding.inflate(layoutInflater)
+        dialog.setContentView(dialogBinding.root)
+
+        with(dialogBinding) {
+            dialogMessage.text = getString(R.string.dialog_delete_song_from_list)
+            dialogPlaylistName.text = song.title
+
+            confirmButton.setOnClickListener {
+                viewModel.deleteSongFromPlayList(song)
+                dialog.dismiss()
+                bind()
+            }
+
+            cancelButton.setOnClickListener {
+                dialog.dismiss()
+            }
+        }
+
+        // Show the dialog
+        dialog.show()
+    }
+
+    private fun launchSongListFragment(playlistWithSongs: PlayListWithSongs) {
+        val fragment = SongListFragment.newPlayListInstance(playlistWithSongs)
+        with(binding) {
+            this@PlayListDetailsFragment
+                .childFragmentManager
+                .beginTransaction()
+                .replace(this.fragmentSongListContainer.id, fragment)
+                .commit()
         }
     }
 
@@ -375,65 +442,6 @@ class PlayListDetailsFragment : Fragment(), SongListFragment.OnSongDeleteListene
     private fun toggleVisibility(gone: View, visible: View) {
         gone.visibility = View.GONE
         visible.visibility = View.VISIBLE
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        Log.d(TAG, "onCreateView PlayListDetailsFragment")
-        _binding = ListDisplayBinding.inflate(inflater, container, false)
-        bind()
-        return binding.root
-    }
-
-    override fun onStart() {
-        Log.d(TAG, "onStart PlayListDetailsFragment")
-        super.onStart()
-        // Set the bottom navigation item as selected
-        val bottomNavigation =
-            activity?.findViewById<BottomNavigationView>(R.id.bottomNavigationView)
-        bottomNavigation?.let {
-            it.menu.getItem(1).isCheckable = true
-            it.menu.getItem(1).isChecked = true
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null // avoid memory leaks
-    }
-
-    override fun onSongDelete(song: Song) {
-        Log.d(TAG, "onDeleteSongFromPlayListClick")
-
-        // Show a dialog to confirm the deletion of the song
-        val dialog = Dialog(requireContext())
-        val dialogBinding = DialogBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-
-        with(dialogBinding) {
-            dialogMessage.text = getString(R.string.dialog_delete_song_from_list)
-            dialogPlaylistName.text = song.title
-
-            confirmButton.setOnClickListener {
-                lifecycleScope.launch {
-                    playlist?.let {
-                        db?.playListSongCrossRefDao()?.delete(it.id, song.id)
-                        Log.d(TAG, "Song deleted from playlist")
-                        this@PlayListDetailsFragment.bind()
-                    }
-                }
-                dialog.dismiss()
-            }
-
-            cancelButton.setOnClickListener {
-                dialog.dismiss()
-            }
-        }
-
-        // Show the dialog
-        dialog.show()
     }
 
 }
