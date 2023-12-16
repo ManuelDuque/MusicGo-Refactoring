@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.google.firebase.auth.ktx.auth
@@ -30,6 +31,7 @@ import com.unex.musicgo.models.Comment
 import com.unex.musicgo.models.PlayListSongCrossRef
 import com.unex.musicgo.models.PlayListWithSongs
 import com.unex.musicgo.models.Song
+import com.unex.musicgo.ui.vms.SongDetailsFragmentViewModel
 import kotlinx.coroutines.launch
 
 class SongDetailsFragment : Fragment() {
@@ -49,12 +51,14 @@ class SongDetailsFragment : Fragment() {
     private var _binding: SongDetailsFragmentBinding? = null
     private val binding get() = _binding!!
 
+    private val viewModel: SongDetailsFragmentViewModel by lazy {
+        ViewModelProvider(
+            this,
+            SongDetailsFragmentViewModel.Factory
+        )[SongDetailsFragmentViewModel::class.java]
+    }
+
     private var db: MusicGoDatabase? = null
-
-    private var trackId: String? = null
-    private var song: Song? = null
-
-    private var favoritesPlayList: PlayListWithSongs? = null
 
     private var timeListening: Long = 0 // In milliseconds
 
@@ -79,19 +83,11 @@ class SongDetailsFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate SongDetailsFragment")
+
         arguments?.let {
-            trackId = it.getString(EXTRA_TRACK_ID)
+            val trackId = it.getString(EXTRA_TRACK_ID)
+            viewModel.setTrackId(trackId!!)
         }
-
-        lifecycleScope.launch {
-            db = MusicGoDatabase.getInstance(requireContext())
-            favoritesPlayList = db?.playListDao()?.getFavoritesPlayList()
-        }
-    }
-
-    override fun onAttach(context: Context) {
-        Log.d(TAG, "onAttach SongDetailsFragment")
-        super.onAttach(context)
     }
 
     override fun onCreateView(
@@ -100,22 +96,52 @@ class SongDetailsFragment : Fragment() {
     ): View {
         Log.d(TAG, "onCreateView SongDetailsFragment")
         _binding = SongDetailsFragmentBinding.inflate(inflater, container, false)
-
-        if (savedInstanceState != null) {
-            song = savedInstanceState.getSerializable("song") as Song?
-            trackId = savedInstanceState.getString("trackId")
-            val isPlaying = savedInstanceState.getBoolean("isPlaying")
-            val currentPosition = savedInstanceState.getInt("currentPosition")
-            restoreState(isPlaying, currentPosition)
-        } else if (trackId == null) {
-            Toast.makeText(requireContext(), "No track id", Toast.LENGTH_SHORT).show()
-        } else {
-            initialState()
-        }
-
+        // restore(savedInstanceState)
         return binding.root
     }
 
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setUpViewModel()
+    }
+
+    private fun setUpViewModel() {
+        viewModel.toastLiveData.observe(viewLifecycleOwner) {
+            Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
+        }
+        viewModel.song.observe(viewLifecycleOwner) {
+            Log.d(TAG, "song: $it")
+            bindSong(it)
+        }
+        viewModel.isPlaying.observe(viewLifecycleOwner) { isPlaying ->
+            Log.d(TAG, "isPlaying: $isPlaying")
+            if (isPlaying) {
+                // Play the song
+                playSong()
+            } else {
+                // Pause the song
+            }
+        }
+    }
+
+    /*
+    private fun restore(savedInstanceState: Bundle?) {
+        var trackId: String? = null
+        if(savedInstanceState != null) {
+            val song = savedInstanceState.getSerializable("song") as Song?
+            trackId = savedInstanceState.getString("trackId")
+            val isPlaying = savedInstanceState.getBoolean("isPlaying")
+            val currentPosition = savedInstanceState.getInt("currentPosition")
+            // restoreState(isPlaying, currentPosition)
+        } else if (trackId == null) {
+            Toast.makeText(requireContext(), "No track id", Toast.LENGTH_SHORT).show()
+        } else {
+            bindSong()
+        }
+    }
+    */
+
+    /*
     private fun restoreState(isPlaying: Boolean, currentPosition: Int) {
         Log.d(TAG, "Restoring state")
         bindSong()
@@ -146,20 +172,7 @@ class SongDetailsFragment : Fragment() {
                 .show()
         }
     }
-
-    private fun initialState() {
-        try {
-            lifecycleScope.launch {
-                Log.d(TAG, "SongBaseModel id: $trackId")
-                song = fetchSong(trackId!!)
-                Log.d(TAG, "Song: $song")
-                bindSong()
-            }
-        } catch (e: Exception) {
-            Log.d(TAG, "Error: $e")
-            Toast.makeText(requireContext(), "Error while fetching song", Toast.LENGTH_SHORT).show()
-        }
-    }
+    */
 
     private fun destroyMediaPlayer() {
         showPlayButton()
@@ -170,6 +183,7 @@ class SongDetailsFragment : Fragment() {
         mediaPlayer = null
         // Update the statistics of the song
         lifecycleScope.launch {
+            val song = viewModel.song.value
             song?.let {
                 Log.d(TAG, "timeListening: $timeListening")
                 db?.statisticsDao()?.registerPlay(
@@ -211,33 +225,6 @@ class SongDetailsFragment : Fragment() {
         }
     }
 
-    private suspend fun fetchSong(songId: String): Song {
-        var song: Song?
-        try {
-            // Try to get the song from the database cache
-            val db = MusicGoDatabase.getInstance(requireContext())
-            song = db?.songsDao()?.getSongById(songId)
-            // If the song is not in the database, get it from the network
-            if (song == null) {
-                // Get the song from the network
-                song = getTrack(songId)
-                // Insert the song into the database
-                db?.songsDao()?.insert(song)
-            }
-        } catch (e: Exception) {
-            Log.d(TAG, "Error: $e")
-            throw Exception("Error while fetching song")
-        }
-        return song
-    }
-
-    private suspend fun getTrack(trackId: String): Song {
-        val authToken = getAuthToken()
-        val networkService = getNetworkService()
-        val track = networkService.getTrack(authToken, trackId)
-        return track.toSong()
-    }
-
     private fun playSong() {
         // Check if the media player exists
         try {
@@ -246,6 +233,7 @@ class SongDetailsFragment : Fragment() {
                 Log.d(TAG, "mediaPlayer is null")
                 // If not exists, create a new one
                 lifecycleScope.launch {
+                    val song = viewModel.song.value
                     mediaPlayer = MediaPlayer().apply {
                         setAudioAttributes(
                             AudioAttributes.Builder()
@@ -318,8 +306,6 @@ class SongDetailsFragment : Fragment() {
     }
 
     private fun fillStars(stars: Int) {
-        Log.d(TAG, "fillStars: $stars")
-        Log.d(TAG, "favorites: $favoritesPlayList")
         with(binding) {
             when (stars) {
                 1 -> {
@@ -365,33 +351,14 @@ class SongDetailsFragment : Fragment() {
         }
     }
 
-    private fun updateSongRating(rate: Int) {
-        lifecycleScope.launch {
-            song?.isRated = true
-            song?.rating = rate
-            favoritesPlayList?.let {
-                val songInFavorites = it.songs.find {
-                    it.id == song?.id
-                } != null
-                db?.songsDao()?.insert(song!!)
-                if (songInFavorites && rate < 4) {
-                    db?.playListSongCrossRefDao()?.delete(it.playlist.id, song!!.id)
-                } else if (rate >= 4) {
-                    val crossRef = PlayListSongCrossRef(it.playlist.id, song!!.id)
-                    db?.playListSongCrossRefDao()?.insert(crossRef)
-                }
-            }
-        }
-    }
-
-    private fun bindSong() {
+    private fun bindSong(song: Song) {
         with(binding) {
-            songInfoNames.text = song?.title
-            songInfoArtistMain.text = song?.artist
-            songInfoGenreMain.text = song?.genres ?: "Unknown"
-            song?.isRated?.let {
+            songInfoNames.text = song.title
+            songInfoArtistMain.text = song.artist
+            songInfoGenreMain.text = song.genres ?: "Unknown"
+            song.isRated.let {
                 if (it) {
-                    fillStars(song?.rating ?: 0)
+                    fillStars(song.rating)
                 }
             }
             /** Use glide to load the image */
@@ -401,49 +368,29 @@ class SongDetailsFragment : Fragment() {
             /** Add click listener to stars */
             star1.setOnClickListener {
                 fillStars(1)
-                updateSongRating(1)
+                viewModel.updateSongRating(1)
             }
             star2.setOnClickListener {
                 fillStars(2)
-                updateSongRating(2)
+                viewModel.updateSongRating(2)
             }
             star3.setOnClickListener {
                 fillStars(3)
-                updateSongRating(3)
+                viewModel.updateSongRating(3)
             }
             star4.setOnClickListener {
                 fillStars(4)
-                updateSongRating(4)
+                viewModel.updateSongRating(4)
             }
             star5.setOnClickListener {
                 fillStars(5)
-                updateSongRating(5)
+                viewModel.updateSongRating(5)
             }
-            /** Play button can be used to play the song */
             playButton.setOnClickListener {
-                // Check if there is internet connection
-                val connectivityManager = requireActivity().getSystemService(
-                    Context.CONNECTIVITY_SERVICE
-                ) as ConnectivityManager
-                val activeNetwork: Network? = connectivityManager.activeNetwork
-                if (activeNetwork == null) {
-                    Toast.makeText(
-                        requireContext(),
-                        "No internet connection",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return@setOnClickListener
-                }
-                if (song?.previewUrl.isNullOrEmpty()) {
-                    Toast.makeText(
-                        requireContext(),
-                        "This song does not have a preview",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return@setOnClickListener
-                }
-                // Play the song
-                playSong()
+                viewModel.play(requireContext())
+            }
+            pauseButton.setOnClickListener {
+                viewModel.pause()
             }
             /** Pause button can be used to pause the song */
             pauseButton.setOnClickListener {
@@ -501,15 +448,8 @@ class SongDetailsFragment : Fragment() {
         lifecycleScope.launch {
             val username = db?.userDao()?.getUserByEmail(email)?.username
             username?.let {
-                val firestore = Firebase.firestore
-                val commentRef = firestore.collection("comments").document()
-                val commentObj = Comment(
-                    songId = song!!.id,
-                    authorEmail = email,
-                    username = it,
-                    description = comment,
-                    timestamp = System.currentTimeMillis()
-                )
+                val commentRef = Firebase.firestore.collection("comments").document()
+                val commentObj = viewModel.createComment(it, email, comment)
                 commentRef.set(commentObj)
                 Toast.makeText(
                     requireContext(),
@@ -525,12 +465,14 @@ class SongDetailsFragment : Fragment() {
     }
 
     private fun launchCommentsFragment() {
+        val song = viewModel.song.value
         val commentListFragment = CommentListFragment.newInstance(song!!)
         childFragmentManager.beginTransaction()
             .replace(binding.songInfoComments.id, commentListFragment)
             .commit()
     }
 
+    /*
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         Log.d(TAG, "Saving state")
@@ -547,6 +489,7 @@ class SongDetailsFragment : Fragment() {
         outState.putString("trackId", trackId)
         outState.putSerializable("song", song)
     }
+    */
 
     override fun onDestroyView() {
         super.onDestroyView()
