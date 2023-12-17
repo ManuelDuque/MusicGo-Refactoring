@@ -54,7 +54,7 @@ class SongListFavoritesFragment : Fragment() {
         setUpRecyclerView()
 
         viewModel.load(requireContext()) {
-            viewModel.fetchSongs()
+            viewModel.fetchMostPlayedSongs()
         }
     }
 
@@ -64,6 +64,11 @@ class SongListFavoritesFragment : Fragment() {
         }
         viewModel.isLoading.observe(viewLifecycleOwner) {
             binding?.spinner?.visibility = if (it) View.VISIBLE else View.GONE
+        }
+        viewModel.listMostPlayedStatistics.observe(viewLifecycleOwner) {
+            viewModel.load(requireContext()) {
+                viewModel.fetchSongs()
+            }
         }
         viewModel.songs.observe(viewLifecycleOwner) {
             adapter.updateData(it)
@@ -92,8 +97,6 @@ class SongListFavoritesFragment : Fragment() {
         super.onDestroyView()
         binding = null // avoid memory leaks
     }
-
-    class Error(message: String, cause: Throwable?) : Throwable(message, cause)
 
     companion object {
 

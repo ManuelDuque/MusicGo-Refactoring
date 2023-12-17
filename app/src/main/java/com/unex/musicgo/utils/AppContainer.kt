@@ -27,4 +27,13 @@ class AppContainer(context: Context?) {
         Firebase.auth,
         userDao
     )
+
+    val songRepository = SongRepository(
+        networkService,
+        songsDao
+    )
+
+    val statisticsRepository = StatisticsRepository(
+        statisticsDao
+    )
 }

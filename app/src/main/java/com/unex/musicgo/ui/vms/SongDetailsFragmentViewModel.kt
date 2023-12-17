@@ -17,19 +17,18 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.unex.musicgo.MusicGoApplication
-import com.unex.musicgo.api.getAuthToken
-import com.unex.musicgo.api.getNetworkService
-import com.unex.musicgo.data.toSong
 import com.unex.musicgo.models.Comment
 import com.unex.musicgo.models.PlayListSongCrossRef
 import com.unex.musicgo.models.PlayListWithSongs
 import com.unex.musicgo.models.Song
 import com.unex.musicgo.utils.Repository
+import com.unex.musicgo.utils.SongRepository
 import com.unex.musicgo.utils.UserRepository
 import kotlinx.coroutines.launch
 
 class SongDetailsFragmentViewModel(
     private val userRepository: UserRepository,
+    private val songRepository: SongRepository,
     private val repository: Repository
 ): ViewModel() {
 
@@ -187,29 +186,10 @@ class SongDetailsFragmentViewModel(
     }
 
     suspend fun fetchSong(trackId: String) {
-        Log.d(TAG, "fetchSong")
-        if (_song.value != null) return
-        Log.d(TAG, "fetchSong trackId: $trackId")
-        if(trackId.isEmpty()) return
-        val database = repository.database
-        val song = database.songsDao().getSongById(trackId)
-        Log.d(TAG, "fetchSong song: $song")
-        song?.let {
-            Log.d(TAG, "fetchSong song from database: $it")
+        songRepository.fetchSong(trackId) {
             _song.postValue(it)
             prepareMediaPlayer(it.previewUrl)
-            return
         }
-        Log.d(TAG, "fetchSong song from network")
-        val auth = getAuthToken()
-        val service = getNetworkService()
-        val track = service.getTrack(auth, trackId)
-        Log.d(TAG, "fetchSong track: $track")
-        val songFromTrack = track.toSong()
-        Log.d(TAG, "fetchSong songFromTrack: $songFromTrack")
-        database.songsDao().insert(songFromTrack)
-        _song.postValue(songFromTrack)
-        prepareMediaPlayer(songFromTrack.previewUrl)
     }
 
     private fun prepareMediaPlayer(previewUrl: String?, block: () -> Unit? = {}) {
@@ -370,6 +350,7 @@ class SongDetailsFragmentViewModel(
                 val app = application as MusicGoApplication
                 val viewModel = SongDetailsFragmentViewModel(
                     app.appContainer.userRepository,
+                    app.appContainer.songRepository,
                     app.appContainer.repository,
                 )
                 return viewModel as T

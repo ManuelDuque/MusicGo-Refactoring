@@ -9,41 +9,35 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.unex.musicgo.MusicGoApplication
-import com.unex.musicgo.api.getAuthToken
-import com.unex.musicgo.api.getNetworkService
-import com.unex.musicgo.data.toSong
 import com.unex.musicgo.models.Song
-import com.unex.musicgo.utils.Repository
+import com.unex.musicgo.utils.SongRepository
+import com.unex.musicgo.utils.StatisticsRepository
 import kotlinx.coroutines.launch
 
 class SongListFavoritesFragmentViewModel(
-    private val repository: Repository
+    private val songRepository: SongRepository,
+    private val statisticsRepository: StatisticsRepository
 ): ViewModel() {
 
     val toastLiveData = MutableLiveData<String>()
     val isLoading = MutableLiveData(false)
 
-    private var _songs = MutableLiveData<List<Song>>()
-    val songs: LiveData<List<Song>> =  _songs
+    val listMostPlayedStatistics = statisticsRepository.mostPlayedSongs
+    private val _songs = MutableLiveData<List<Song>>()
+    val songs: LiveData<List<Song>> = _songs
+
+    fun fetchMostPlayedSongs() = statisticsRepository.fetchMostPlayedSong(3)
 
     suspend fun fetchSongs() {
-        val database = repository.database
+        val listMostPlayedStatistics = statisticsRepository.mostPlayedSongs.value
+        if (listMostPlayedStatistics == null) {
+            toastLiveData.postValue("No songs found")
+            return
+        }
         val songs = mutableListOf<Song>()
-        // Get the songs most played
-        val listMostPlayedStatistics = database.statisticsDao().getAllMostPlayedSong(3)
-        // Get the songs from database or network
-        val service = getNetworkService()
-        var token: String? = null
-        listMostPlayedStatistics.forEach {
-            val songOnDB = database.songsDao().getSongById(it.songId)
-            if (songOnDB != null) {
-                songs.add(songOnDB)
-            } else {
-                if (token == null) token = getAuthToken()
-                val songOnNetwork = service.getTrack(token!!, it.songId)
-                val song = songOnNetwork.toSong()
-                songs.add(song)
-                database.songsDao().insert(song)
+        listMostPlayedStatistics.forEach { userStatistics ->
+            songRepository.fetchSong(userStatistics.songId) {
+                songs += it
             }
         }
         _songs.postValue(songs)
@@ -81,8 +75,10 @@ class SongListFavoritesFragmentViewModel(
                 extras: CreationExtras
             ): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val app = application as MusicGoApplication
                 val viewModel = SongListFavoritesFragmentViewModel(
-                    (application as MusicGoApplication).appContainer.repository,
+                    app.appContainer.songRepository,
+                    app.appContainer.statisticsRepository
                 )
                 return viewModel as T
             }
