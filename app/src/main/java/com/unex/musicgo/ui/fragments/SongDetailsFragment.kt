@@ -239,11 +239,20 @@ class SongDetailsFragment : Fragment() {
         viewModel.saveState(outState)
     }
 
+    override fun onPause() {
+        super.onPause()
+        Log.d(TAG, "onPause")
+        // Pause the media player
+        viewModel.pause()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         Log.d(TAG, "onDestroyView")
         // Destroy the media player
         viewModel.destroyMediaPlayer()
+        // Save the statistics
+        viewModel.saveStatistics()
         // Avoid memory leaks
         _binding = null
     }

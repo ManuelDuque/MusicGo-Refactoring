@@ -53,22 +53,31 @@ class SongDetailsFragmentViewModel(
     private val _progress = MutableLiveData(0)
     val progress: LiveData<Int> = _progress
 
+    /* Statistics */
+    private var timePlayed: Long = 0
+
     /* Media player */
     private var mediaPlayer: MediaPlayer? = null
+    private var isMediaPlayerPrepared = false
 
     /* Progress bar checker */
     private val handler = Handler(Looper.getMainLooper())
     private var lastProgress = 0
     private val progressChecker: Runnable = object : Runnable {
         override fun run() {
-            val currentProgress = mediaPlayer?.currentPosition
-            if (currentProgress == null) {
-                handler.postDelayed(this, 1000)
-                return
-            }
-            if (currentProgress != lastProgress) {
-                lastProgress = currentProgress
-                _progress.postValue(currentProgress)
+            if (isMediaPlayerPrepared) {
+                val currentProgress = mediaPlayer?.currentPosition
+                if (currentProgress == null) {
+                    handler.postDelayed(this, 1000)
+                    return
+                }
+                if (currentProgress != lastProgress) {
+                    lastProgress = currentProgress
+                    _progress.postValue(currentProgress)
+
+                    // Save statistics
+                    timePlayed += 1000
+                }
             }
             handler.postDelayed(this, 1000)
         }
@@ -79,6 +88,7 @@ class SongDetailsFragmentViewModel(
     private val _commentDelayToPost = 3000L // 3 seconds
 
     init {
+        Log.d(TAG, "init")
         viewModelScope.launch {
             try {
                 isLoading.postValue(true)
@@ -99,8 +109,12 @@ class SongDetailsFragmentViewModel(
 
     fun destroyMediaPlayer() {
         stopProgressChecker()
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
+        if (isMediaPlayerPrepared && mediaPlayer?.isPlaying == true) {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+            isMediaPlayerPrepared = false
+        }
     }
 
     fun startProgressChecker() {
@@ -112,7 +126,9 @@ class SongDetailsFragmentViewModel(
     }
 
     fun maxProgress(): Int {
-        return mediaPlayer?.duration ?: 0
+        if (mediaPlayer == null) return 0
+        if (!isMediaPlayerPrepared) return 0
+        return mediaPlayer!!.duration
     }
 
     fun seekTo(progress: Int) {
@@ -206,6 +222,7 @@ class SongDetailsFragmentViewModel(
                 )
                 this.setDataSource(url)
                 setOnPreparedListener {
+                    isMediaPlayerPrepared = true
                     block()
                 }
                 setOnCompletionListener {
@@ -305,6 +322,26 @@ class SongDetailsFragmentViewModel(
                 if(isNetworkAvailable(context)) {
                     block()
                 }
+            } catch (e: Exception) {
+                toastLiveData.postValue(e.message)
+            } finally {
+                isLoading.postValue(false)
+            }
+        }
+    }
+
+    fun saveStatistics() {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "saveStatistics: ${song.value!!.id}, timePlayed: $timePlayed")
+                isLoading.postValue(true)
+                repository.database.statisticsDao().registerPlay(
+                    song.value!!.id,
+                    song.value!!.title,
+                    song.value!!.artist,
+                    timePlayed
+                )
+                Log.d(TAG, "saveStatistics success")
             } catch (e: Exception) {
                 toastLiveData.postValue(e.message)
             } finally {
