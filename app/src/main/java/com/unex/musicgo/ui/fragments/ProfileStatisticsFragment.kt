@@ -62,8 +62,6 @@ class ProfileStatisticsFragment : Fragment() {
 
         setUpViewModel()
         setUpViews()
-
-        viewModel.fetchUser()
     }
 
     private fun setUpViewModel() {
@@ -71,7 +69,7 @@ class ProfileStatisticsFragment : Fragment() {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
         }
         viewModel.user.observe(viewLifecycleOwner) {
-            binding.tittleFavs.text = it.username
+            binding.tittleFavs.text = it?.username
         }
     }
 

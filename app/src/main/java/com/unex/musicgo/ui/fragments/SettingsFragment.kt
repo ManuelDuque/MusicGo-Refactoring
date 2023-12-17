@@ -55,7 +55,10 @@ class SettingsFragment : Fragment() {
             Toast.makeText(requireContext(), it, Toast.LENGTH_SHORT).show()
         }
         viewModel.user.observe(viewLifecycleOwner) {
-            binding.profileInfoNameSecondary.text = it.username
+            it?.let {
+                Log.d(TAG, "User: $it")
+                binding.profileInfoNameSecondary.text = it.username
+            }
         }
     }
 
@@ -94,6 +97,7 @@ class SettingsFragment : Fragment() {
 
     private fun refreshAfterSignOut() {
         viewModel.logOut {
+            Log.d(TAG, "User logged out")
             val intent = LoginActivity.newIntent(requireContext())
             startActivity(intent)
             requireActivity().finish()

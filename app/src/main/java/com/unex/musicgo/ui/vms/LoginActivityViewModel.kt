@@ -5,29 +5,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
 import com.unex.musicgo.MusicGoApplication
-import com.unex.musicgo.models.User
-import com.unex.musicgo.utils.Repository
+import com.unex.musicgo.utils.UserRepository
 import kotlinx.coroutines.launch
 
 class LoginActivityViewModel(
-    private val repository: Repository
+    private val userRepository: UserRepository
 ): ViewModel() {
 
-    private val database by lazy { repository.database }
-    private val auth: FirebaseAuth by lazy { repository.auth }
-
     val toastLiveData = MutableLiveData<String>()
-    val isLoggedLiveData = MutableLiveData<Boolean>()
-
-    init {
-        if (auth.currentUser != null) {
-            isLoggedLiveData.value = true
-        }
-    }
+    val isLoggedLiveData = userRepository.isLogged
 
     fun signInWithEmailAndPassword(email: String, password: String) {
         if (email.isEmpty()) {
@@ -46,40 +33,18 @@ class LoginActivityViewModel(
             toastLiveData.value = "Password must be at least 6 characters."
             return
         }
-        auth.signInWithEmailAndPassword(email, password)
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    saveUser()
-                } else {
-                    toastLiveData.value = "Authentication failed."
+        userRepository.signIn(
+            email = email,
+            password = password,
+            onSuccess = {
+                viewModelScope.launch {
+                    userRepository.saveUser()
                 }
+            },
+            onFailure = {
+                toastLiveData.value = it
             }
-    }
-
-    private fun saveUser() {
-        val email = auth.currentUser?.email
-        val userCollection = Firebase.firestore.collection("users")
-        userCollection.whereEqualTo("email", email).get()
-            .addOnSuccessListener { documents ->
-                for (document in documents) {
-                    val userEmail = document.data["email"].toString()
-                    val userSurname = document.data["userSurname"].toString()
-                    val username = document.data["username"].toString()
-                    val user = User(
-                        email = userEmail,
-                        userSurname = userSurname,
-                        username = username,
-                    )
-                    viewModelScope.launch {
-                        database.userDao().deleteAll()
-                        database.userDao().insertUser(user)
-                        isLoggedLiveData.value = true
-                    }
-                }
-            }
-            .addOnFailureListener {
-                toastLiveData.value = "Error getting user data."
-            }
+        )
     }
 
     companion object {
@@ -92,8 +57,9 @@ class LoginActivityViewModel(
                 extras: CreationExtras
             ): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val app = application as MusicGoApplication
                 val viewModel = LoginActivityViewModel(
-                    (application as MusicGoApplication).appContainer.repository,
+                    app.appContainer.userRepository,
                 )
                 return viewModel as T
             }

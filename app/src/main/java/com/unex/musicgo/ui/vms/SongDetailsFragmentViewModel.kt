@@ -25,9 +25,11 @@ import com.unex.musicgo.models.PlayListSongCrossRef
 import com.unex.musicgo.models.PlayListWithSongs
 import com.unex.musicgo.models.Song
 import com.unex.musicgo.utils.Repository
+import com.unex.musicgo.utils.UserRepository
 import kotlinx.coroutines.launch
 
 class SongDetailsFragmentViewModel(
+    private val userRepository: UserRepository,
     private val repository: Repository
 ): ViewModel() {
 
@@ -291,7 +293,12 @@ class SongDetailsFragmentViewModel(
         }
         // Save the comment
         viewModelScope.launch {
-            val username = repository.database.userDao().getUserByEmail(email).username
+            val user = userRepository.currentUser.value
+            if (user == null) {
+                toastLiveData.postValue("You must be logged in to comment")
+                return@launch
+            }
+            val username = user.username
             username.let {
                 val commentRef = Firebase.firestore.collection("comments").document()
                 val commentObj = Comment(
@@ -360,8 +367,10 @@ class SongDetailsFragmentViewModel(
                 extras: CreationExtras
             ): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val app = application as MusicGoApplication
                 val viewModel = SongDetailsFragmentViewModel(
-                    (application as MusicGoApplication).appContainer.repository,
+                    app.appContainer.userRepository,
+                    app.appContainer.repository,
                 )
                 return viewModel as T
             }

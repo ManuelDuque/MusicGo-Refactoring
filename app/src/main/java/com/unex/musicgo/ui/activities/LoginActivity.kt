@@ -47,9 +47,11 @@ class LoginActivity : AppCompatActivity() {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
         viewModel.isLoggedLiveData.observe(this) {
-            val intent = HomeActivity.getIntent(this)
-            startActivity(intent)
-            finish()
+            if (it) {
+                val intent = HomeActivity.getIntent(this)
+                startActivity(intent)
+                finish()
+            }
         }
     }
 
@@ -64,11 +66,6 @@ class LoginActivity : AppCompatActivity() {
             val intent = SignupActivity.newIntent(this@LoginActivity)
             startActivity(intent)
         }
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        Log.d(TAG, "Saving instance state")
     }
 
     override fun onDestroy() {
