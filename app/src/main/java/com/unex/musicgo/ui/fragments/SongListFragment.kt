@@ -44,9 +44,9 @@ class SongListFragment : Fragment() {
             viewModel.setRecommendationSeeds(it.getString(GENRE_ARG), it.getString(ARTIST_ARG))
             val playList = arguments?.getSerializable(PLAYLIST_ARG) as PlayListWithSongs?
             viewModel.setPlayList(playList)
-
-            val songListFragmentOption = SongListFragmentOption.valueOf(it.getString(OPTION_ARG)!!)
-            viewModel.setOption(songListFragmentOption.name)
+            viewModel.setOption(
+                SongListFragmentOption.valueOf(it.getString(OPTION_ARG)!!)
+            )
         }
     }
 
@@ -79,7 +79,6 @@ class SongListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setUpViewModel()
-        setUpRecyclerView()
     }
 
     private fun setUpViewModel() {
@@ -97,6 +96,9 @@ class SongListFragment : Fragment() {
                 viewModel.fetch()
             }
         }
+        viewModel.option.observe(viewLifecycleOwner) {
+            setUpRecyclerView()
+        }
     }
 
     private fun setUpRecyclerView() {
@@ -112,7 +114,7 @@ class SongListFragment : Fragment() {
                 onDeleteClick = {
                     onDeleteListener?.onSongDelete(it)
                 },
-                showTrash = viewModel.showTrash,
+                showTrash = viewModel.showTrash(),
                 context = this.context
             )
             it.rvSongList.layoutManager = LinearLayoutManager(context)
@@ -125,8 +127,6 @@ class SongListFragment : Fragment() {
         super.onDestroyView()
         binding = null // avoid memory leaks
     }
-
-    class Error(message: String, cause: Throwable?) : Throwable(message, cause)
 
     companion object {
 

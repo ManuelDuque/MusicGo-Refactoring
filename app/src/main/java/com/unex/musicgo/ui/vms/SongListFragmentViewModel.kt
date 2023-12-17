@@ -28,9 +28,6 @@ class SongListFragmentViewModel(
 
     val toastLiveData = MutableLiveData<String>()
     val isLoading = MutableLiveData(false)
-    private var _showTrash = MutableLiveData(false)
-    val showTrash: Boolean
-        get() = _showTrash.value!!
 
     /* Option */
     private var _option = MutableLiveData<String>()
@@ -111,12 +108,11 @@ class SongListFragmentViewModel(
         }
     }
 
-    fun setOption(option: String) {
-        _option.postValue(option)
-        if (option == SongListFragmentOption.PLAYLIST.name) {
-            _showTrash.postValue(true)
-        }
+    fun setOption(option: SongListFragmentOption) {
+        _option.postValue(option.name)
     }
+
+    fun showTrash() = _option.value == SongListFragmentOption.PLAYLIST.name
 
     suspend fun fetch() {
         when (option.value) {
@@ -189,7 +185,7 @@ class SongListFragmentViewModel(
         _songs.postValue(songs)
     }
 
-    private suspend fun fetchPlayList() {
+    private fun fetchPlayList() {
         val songs = playlist.value?.songs ?: throw Exception("Playlist not found")
         _songs.postValue(songs)
     }
