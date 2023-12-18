@@ -112,6 +112,9 @@ class SongDetailsFragment : Fragment() {
             binding.songProgress.max = viewModel.maxProgress()
             binding.songProgress.progress = it.toInt()
         }
+        viewModel.favoritesPlayListLiveData.observe(viewLifecycleOwner) {
+            Log.d(TAG, "setUpViewModel favoritesPlayListLiveData: $it")
+        }
     }
 
     private fun fillStars(stars: Int) {

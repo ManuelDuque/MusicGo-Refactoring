@@ -36,4 +36,10 @@ class AppContainer(context: Context?) {
     val statisticsRepository = StatisticsRepository(
         statisticsDao
     )
+
+    val playListRepository = PlayListRepository(
+        songsDao,
+        playListDao,
+        playListSongCrossRefDao
+    )
 }

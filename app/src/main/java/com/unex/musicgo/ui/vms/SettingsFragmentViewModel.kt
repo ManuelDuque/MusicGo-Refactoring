@@ -15,8 +15,7 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 class SettingsFragmentViewModel(
-    private val userRepository: UserRepository,
-    private val repository: Repository
+    private val userRepository: UserRepository
 ): ViewModel() {
 
     val toastLiveData = MutableLiveData<String>()
@@ -68,8 +67,7 @@ class SettingsFragmentViewModel(
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
                 val app = application as MusicGoApplication
                 val viewModel = SettingsFragmentViewModel(
-                    app.appContainer.userRepository,
-                    app.appContainer.repository
+                    app.appContainer.userRepository
                 )
                 return viewModel as T
             }

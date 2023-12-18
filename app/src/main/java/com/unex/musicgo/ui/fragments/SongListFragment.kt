@@ -78,6 +78,7 @@ class SongListFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        setUpRecyclerView()
         setUpViewModel()
     }
 
@@ -95,9 +96,6 @@ class SongListFragment : Fragment() {
             viewModel.load(requireContext()) {
                 viewModel.fetch()
             }
-        }
-        viewModel.option.observe(viewLifecycleOwner) {
-            setUpRecyclerView()
         }
     }
 

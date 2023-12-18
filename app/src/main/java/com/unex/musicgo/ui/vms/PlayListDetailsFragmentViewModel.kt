@@ -14,12 +14,12 @@ import com.unex.musicgo.models.PlayList
 import com.unex.musicgo.models.PlayListWithSongs
 import com.unex.musicgo.models.Song
 import com.unex.musicgo.ui.enums.PlayListDetailsFragmentOption
-import com.unex.musicgo.utils.Repository
+import com.unex.musicgo.utils.PlayListRepository
 import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
 
 class PlayListDetailsFragmentViewModel(
-    private val repository: Repository
+    private val playListRepository: PlayListRepository
 ): ViewModel() {
 
     val toastLiveData = MutableLiveData<String>()
@@ -34,7 +34,7 @@ class PlayListDetailsFragmentViewModel(
     private val _newPlayList: MutableLiveData<PlayList> = MutableLiveData()
 
     /** Playlists */
-    private var playlists = MutableLiveData<List<PlayList>>()
+    private var playlists = playListRepository.getAllUserPlayLists()
 
     /** Brush active */
     var isTitleBrushActive = false
@@ -62,22 +62,17 @@ class PlayListDetailsFragmentViewModel(
         mutableLiveData
     }
 
-    init {
-        viewModelScope.launch {
-            playlists.postValue(repository.database.playListDao().getPlayListsCreatedByUserWithoutSongs())
-        }
-    }
-
     fun setStartMode(mode: PlayListDetailsFragmentOption, playList: PlayList?) {
         state = mode
         setPlayList(playList)
     }
 
-    fun setPlayList(playList: PlayList?) {
+    private fun setPlayList(playList: PlayList?) {
         playList?.let {
             viewModelScope.launch {
-                val playlistWithSongs = repository.database.playListDao().getPlayList(playList.id)
-                _playList.postValue(playlistWithSongs)
+                playListRepository.fetchPlayList(it.id) {
+                    _playList.postValue(it)
+                }
             }
         }
     }
@@ -155,9 +150,9 @@ class PlayListDetailsFragmentViewModel(
                 _newPlayList.postValue(playlist)
                 viewModelScope.launch {
                     if (state == PlayListDetailsFragmentOption.CREATE) {
-                        repository.database.playListDao().insert(playlist)
+                        playListRepository.insertPlayList(playlist)
                     } else {
-                        repository.database.playListDao().update(playlist)
+                        playListRepository.updatePlayList(playlist)
                     }
                 }
                 onSuccess()
@@ -168,7 +163,7 @@ class PlayListDetailsFragmentViewModel(
             playlist.title = text
             _playList.postValue(_playList.value)
             viewModelScope.launch {
-                repository.database.playListDao().update(playlist)
+                playListRepository.updatePlayList(playlist)
             }
             onSuccess()
         }
@@ -186,9 +181,9 @@ class PlayListDetailsFragmentViewModel(
                 _newPlayList.postValue(playlist)
                 viewModelScope.launch {
                     if (state == PlayListDetailsFragmentOption.CREATE) {
-                        repository.database.playListDao().insert(playlist)
+                        playListRepository.insertPlayList(playlist)
                     } else {
-                        repository.database.playListDao().update(playlist)
+                        playListRepository.updatePlayList(playlist)
                     }
                 }
                 onSuccess()
@@ -199,7 +194,7 @@ class PlayListDetailsFragmentViewModel(
             playlist.description = text
             _playList.postValue(_playList.value)
             viewModelScope.launch {
-                repository.database.playListDao().update(playlist)
+                playListRepository.updatePlayList(playlist)
             }
             onSuccess()
         }
@@ -208,10 +203,7 @@ class PlayListDetailsFragmentViewModel(
     fun deletePlayList(onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             val playlist = _playList.value?.playlist ?: return@launch
-            // Delete all the cross references between the playlist and the songs
-            repository.database.playListSongCrossRefDao().deleteAllByPlayList(playlist.id)
-            // Delete the playlist
-            repository.database.playListDao().delete(playlist.id)
+            playListRepository.deletePlayList(playlist)
             onSuccess()
         }
     }
@@ -234,9 +226,10 @@ class PlayListDetailsFragmentViewModel(
         viewModelScope.launch {
             val title = song.title
             val playlist = _playList.value?.playlist ?: return@launch
-            repository.database.playListSongCrossRefDao().delete(playlist.id, song.id)
-            val playlistWithSongs = repository.database.playListDao().getPlayList(playlist.id)
-            _playList.postValue(playlistWithSongs)
+            playListRepository.deleteSongFromPlayList(song, playlist)
+            playListRepository.fetchPlayList(playlist.id) {
+                _playList.postValue(it)
+            }
             toastLiveData.postValue("Song \"$title\" deleted from playlist")
             onSuccess()
         }
@@ -254,8 +247,9 @@ class PlayListDetailsFragmentViewModel(
                 extras: CreationExtras
             ): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val app = application as MusicGoApplication
                 val viewModel = PlayListDetailsFragmentViewModel(
-                    (application as MusicGoApplication).appContainer.repository,
+                    app.appContainer.playListRepository
                 )
                 return viewModel as T
             }

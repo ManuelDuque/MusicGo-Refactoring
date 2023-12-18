@@ -7,12 +7,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.unex.musicgo.MusicGoApplication
 import com.unex.musicgo.models.User
-import com.unex.musicgo.utils.Repository
 import com.unex.musicgo.utils.UserRepository
 
 class ProfileStatisticsFragmentViewModel(
-    private val userRepository: UserRepository,
-    private val repository: Repository
+    private val userRepository: UserRepository
 ): ViewModel() {
 
     val toastLiveData = MutableLiveData<String>()
@@ -32,8 +30,7 @@ class ProfileStatisticsFragmentViewModel(
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
                 val app = application as MusicGoApplication
                 val viewModel = ProfileStatisticsFragmentViewModel(
-                    app.appContainer.userRepository,
-                    app.appContainer.repository,
+                    app.appContainer.userRepository
                 )
                 return viewModel as T
             }

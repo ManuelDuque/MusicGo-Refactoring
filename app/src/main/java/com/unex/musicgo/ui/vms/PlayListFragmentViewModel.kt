@@ -10,10 +10,12 @@ import com.unex.musicgo.MusicGoApplication
 import com.unex.musicgo.models.PlayList
 import com.unex.musicgo.models.PlayListSongCrossRef
 import com.unex.musicgo.models.Song
+import com.unex.musicgo.utils.PlayListRepository
 import com.unex.musicgo.utils.Repository
 import kotlinx.coroutines.launch
 
 class PlayListFragmentViewModel(
+    private val playListRepository: PlayListRepository,
     private val repository: Repository
 ): ViewModel() {
 
@@ -22,20 +24,11 @@ class PlayListFragmentViewModel(
 
     private var _song = MutableLiveData<Song>()
     val song: LiveData<Song> = _song
-
-    private var _playlists = MutableLiveData<List<PlayList>>()
-    val playlists: LiveData<List<PlayList>> = _playlists
+    val playlists: LiveData<List<PlayList>> = playListRepository.getAllUserPlayLists()
 
     fun setSong(song: Song?) {
         song?.let {
             _song.postValue(it)
-        }
-    }
-
-    fun fetchPlayLists() {
-        this.load {
-            val playlists = repository.database.playListDao().getPlayListsCreatedByUserWithoutSongs()
-            _playlists.postValue(playlists)
         }
     }
 
@@ -75,8 +68,10 @@ class PlayListFragmentViewModel(
                 extras: CreationExtras
             ): T {
                 val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val app = application as MusicGoApplication
                 val viewModel = PlayListFragmentViewModel(
-                    (application as MusicGoApplication).appContainer.repository,
+                    app.appContainer.playListRepository,
+                    app.appContainer.repository,
                 )
                 return viewModel as T
             }

@@ -13,17 +13,15 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import kotlinx.coroutines.launch
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import com.unex.musicgo.MusicGoApplication
-import com.unex.musicgo.api.getAuthToken
-import com.unex.musicgo.api.getNetworkService
-import com.unex.musicgo.data.api.common.Items
-import com.unex.musicgo.data.toSong
 import com.unex.musicgo.models.PlayListWithSongs
 import com.unex.musicgo.models.Song
 import com.unex.musicgo.ui.enums.SongListFragmentOption
-import com.unex.musicgo.utils.Repository
+import com.unex.musicgo.utils.PlayListRepository
+import com.unex.musicgo.utils.SongRepository
 
 class SongListFragmentViewModel(
-    private val repository: Repository
+    private val playListRepository: PlayListRepository,
+    private val songRepository: SongRepository
 ) : ViewModel() {
 
     val toastLiveData = MutableLiveData<String>()
@@ -53,13 +51,20 @@ class SongListFragmentViewModel(
 
     /* Songs data */
     private var _songs = MutableLiveData<List<Song>>()
-    val songs: LiveData<List<Song>> = _songs
+    private var _songsFromPlayList = playListRepository.songs
+    val songs: LiveData<List<Song>> = MediatorLiveData()
 
     /* Fetch trigger */
     private val _fetchTrigger = MediatorLiveData<Unit>()
     val canFetch: LiveData<Unit> = _fetchTrigger
 
     init {
+        (songs as MediatorLiveData).addSource(_songs) {
+            songs.postValue(it)
+        }
+        songs.addSource(_songsFromPlayList) {
+            songs.postValue(it)
+        }
         _fetchTrigger.addSource(_option) {
             checkToFetchData()
         }
@@ -116,73 +121,36 @@ class SongListFragmentViewModel(
 
     suspend fun fetch() {
         when (option.value) {
-            SongListFragmentOption.RECENT.name -> fetchRecentSongs()
-            SongListFragmentOption.SEARCH.name -> fetchSearch()
-            SongListFragmentOption.FAVORITES.name -> fetchFavoriteSongs()
-            SongListFragmentOption.RECOMMENDATION.name -> fetchRecommendations()
+            SongListFragmentOption.RECENT.name -> {
+                this.loadWithOutNetwork {
+                    playListRepository.fetchRecentSongs()
+                }
+            }
+            SongListFragmentOption.SEARCH.name -> {
+                songRepository.fetchSearch(
+                    query = query.value ?: "",
+                    onSuccess = { songs ->
+                        _songs.postValue(songs)
+                    },
+                    onError = { message ->
+                        toastLiveData.postValue(message)
+                    }
+                )
+            }
+            SongListFragmentOption.FAVORITES.name -> playListRepository.fetchFavoritesSongs(stars.value)
+            SongListFragmentOption.RECOMMENDATION.name -> songRepository.fetchRecommendations(
+                artistSeed = artistSeed.value,
+                genreSeed = genreSeed.value,
+                onSuccess = { songs ->
+                    _songs.postValue(songs)
+                },
+                onError = { message ->
+                    toastLiveData.postValue(message)
+                }
+            )
             SongListFragmentOption.PLAYLIST.name -> fetchPlayList()
             else -> throw Exception("Option not found")
         }
-    }
-
-    private suspend fun fetchRecentSongs() {
-        val database = repository.database
-        val songs = database.playListDao().getRecentPlayList().songs
-        if(songs.isEmpty()) throw Exception("Recent songs not found")
-        _songs.postValue(songs)
-    }
-
-    private suspend fun fetchFavoriteSongs() {
-        Log.d(TAG, "fetchFavoriteSongs: ${stars.value}")
-        val database = repository.database
-        val favoritePlayList = database.playListDao().getFavoritesPlayList()
-        var songs = favoritePlayList.songs
-        if(songs.isEmpty()) throw Exception("Favorites not found")
-        if (stars.value != 0) {
-            songs = songs.filter {
-                it.rating == stars.value
-            }
-        }
-        _songs.postValue(songs)
-    }
-
-    private suspend fun fetchRecommendations() {
-        var listOfSongs: List<Song>
-        val service = getNetworkService()
-        val authToken = getAuthToken()
-        if (artistSeed.value.isNullOrEmpty() && genreSeed.value.isNullOrEmpty()) {
-            val recommendations = service.getRecommendations(authToken, limit = 50)
-            val tracks = recommendations.tracks
-            listOfSongs = tracks.map(Items::toSong)
-            listOfSongs = listOfSongs.filter { song -> song.previewUrl != null }
-            _songs.postValue(listOfSongs)
-        } else {
-            val recommendations = service.getRecommendations(
-                authToken,
-                limit = 50,
-                seedTracks = "",
-                seedArtists = artistSeed.value ?: "",
-                seedGenres = genreSeed.value ?: ""
-            )
-            val tracks = recommendations.tracks
-            listOfSongs = tracks.map(Items::toSong)
-            listOfSongs = listOfSongs.filter { song -> song.previewUrl != null }
-            _songs.postValue(listOfSongs)
-        }
-    }
-
-    private suspend fun fetchSearch() {
-        Log.d("SongListFragmentViewModel", "fetchSearch: ${query.value}")
-        if(query.value.isNullOrEmpty()) throw Exception("Query cannot be null")
-        val database = repository.database
-        val authToken = getAuthToken()
-        val networkSongs = getNetworkService().search(authToken, query.value!!)
-        val items = networkSongs.tracks?.items
-        val fetchedSongs = items?.map(Items::toSong)
-            ?: throw Exception("Unable to fetch data from API", null)
-        val songs = fetchedSongs.filter { song -> song.previewUrl != null }
-        database.songsDao().insertAll(songs)
-        _songs.postValue(songs)
     }
 
     private fun fetchPlayList() {
@@ -212,6 +180,19 @@ class SongListFragmentViewModel(
         if (stars == null) return
         if (stars == _stars.value) return
         _stars.postValue(stars)
+    }
+
+    private fun loadWithOutNetwork(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                isLoading.postValue(true)
+                block()
+            } catch (e: Exception) {
+                toastLiveData.postValue(e.message)
+            } finally {
+                isLoading.postValue(false)
+            }
+        }
     }
 
     private fun isNetworkAvailable(context: Context): Boolean {
@@ -246,8 +227,10 @@ class SongListFragmentViewModel(
                 extras: CreationExtras
             ): T {
                 val application = checkNotNull(extras[APPLICATION_KEY])
+                val app = application as MusicGoApplication
                 val viewModel = SongListFragmentViewModel(
-                    (application as MusicGoApplication).appContainer.repository,
+                    app.appContainer.playListRepository,
+                    app.appContainer.songRepository
                 )
                 return viewModel as T
             }

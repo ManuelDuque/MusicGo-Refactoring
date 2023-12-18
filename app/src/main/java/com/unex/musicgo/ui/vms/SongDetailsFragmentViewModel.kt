@@ -21,6 +21,7 @@ import com.unex.musicgo.models.Comment
 import com.unex.musicgo.models.PlayListSongCrossRef
 import com.unex.musicgo.models.PlayListWithSongs
 import com.unex.musicgo.models.Song
+import com.unex.musicgo.utils.PlayListRepository
 import com.unex.musicgo.utils.Repository
 import com.unex.musicgo.utils.SongRepository
 import com.unex.musicgo.utils.UserRepository
@@ -29,6 +30,7 @@ import kotlinx.coroutines.launch
 class SongDetailsFragmentViewModel(
     private val userRepository: UserRepository,
     private val songRepository: SongRepository,
+    private val playListRepository: PlayListRepository,
     private val repository: Repository
 ): ViewModel() {
 
@@ -43,8 +45,9 @@ class SongDetailsFragmentViewModel(
     val song: LiveData<Song> = _song
 
     /* Favorite playlist */
-    private var _favoritesPlayList: MutableLiveData<PlayListWithSongs>? = null
-    val favoritesPlayList: PlayListWithSongs? get() = _favoritesPlayList?.value
+    private var _favoritesPlayList = playListRepository.favoritePlayList
+    val favoritesPlayListLiveData: LiveData<PlayListWithSongs> = _favoritesPlayList
+    val favoritesPlayList: PlayListWithSongs? get() = _favoritesPlayList.value
 
     /* Controls */
     private val _isPlaying = MutableLiveData(false)
@@ -88,20 +91,6 @@ class SongDetailsFragmentViewModel(
     private val _commentsHandler = Handler(Looper.getMainLooper())
     private val _commentDelayToPost = 3000L // 3 seconds
 
-    init {
-        Log.d(TAG, "init")
-        viewModelScope.launch {
-            try {
-                isLoading.postValue(true)
-                _favoritesPlayList = MutableLiveData(repository.database.playListDao().getFavoritesPlayList())
-            } catch (e: Exception) {
-                toastLiveData.postValue(e.message)
-            } finally {
-                isLoading.postValue(false)
-            }
-        }
-    }
-
     fun setTrackId(trackId: String) {
         Log.d(TAG, "setTrackId: $trackId")
         if (trackId.isEmpty()) return
@@ -141,20 +130,9 @@ class SongDetailsFragmentViewModel(
             try {
                 val song = song.value!!
                 isLoading.postValue(true)
-                song.isRated = true
-                song.rating = stars
-                favoritesPlayList?.let {
-                    val songInFavorites = it.songs.find { songInList ->
-                        songInList.id == song.id
-                    } != null
-                    repository.database.songsDao().insert(song)
-                    if (songInFavorites && stars < 4) {
-                        repository.database.playListSongCrossRefDao().delete(it.playlist.id, song.id)
-                    } else if (stars >= 4) {
-                        val crossRef = PlayListSongCrossRef(it.playlist.id, song.id)
-                        repository.database.playListSongCrossRefDao().insert(crossRef)
-                    }
-                }
+                Log.d(TAG, "updateRating: $song")
+                // Update the rating of the song
+                playListRepository.rateSong(_favoritesPlayList.value!!, song, stars)
             } catch (e: Exception) {
                 toastLiveData.postValue(e.message)
             } finally {
@@ -351,6 +329,7 @@ class SongDetailsFragmentViewModel(
                 val viewModel = SongDetailsFragmentViewModel(
                     app.appContainer.userRepository,
                     app.appContainer.songRepository,
+                    app.appContainer.playListRepository,
                     app.appContainer.repository,
                 )
                 return viewModel as T

@@ -77,7 +77,6 @@ class PlayListFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setUpViewModel()
         setUpViews()
-        viewModel.fetchPlayLists()
     }
 
     private fun setUpViewModel() {
